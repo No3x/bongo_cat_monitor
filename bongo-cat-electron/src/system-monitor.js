@@ -101,6 +101,10 @@ class SystemMonitor {
             const memoryInfo = await si.mem();
             const memoryUsage = ((memoryInfo.used / memoryInfo.total) * 100) || 0;
 
+            // Get temperature data
+            const cpuTemp = await si.cpuTemperature();
+            const gpuTemp = await si.graphics();
+
             // Smooth CPU readings to reduce fluctuation
             this.cpuLoadArray.push(cpuUsage);
             if (this.cpuLoadArray.length > this.maxCpuSamples) {
@@ -113,6 +117,8 @@ class SystemMonitor {
             this.lastStats = {
                 cpu: Math.round(smoothedCpu * 10) / 10, // Round to 1 decimal
                 memory: Math.round(memoryUsage * 10) / 10, // Round to 1 decimal
+                cpuTemp: cpuTemp.main || -1,
+                gpuTemp: gpuTemp.controllers.length > 0 ? gpuTemp.controllers[0].temperatureGpu : -1,
                 timestamp: Date.now()
             };
 
