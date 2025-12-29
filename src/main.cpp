@@ -1,8 +1,9 @@
 
 
-#include <User_Setup.h>
-#include <lvgl.h>
+// #include <User_Setup.h>
 #include <TFT_eSPI.h>
+#include <lvgl.h>
+
 #include <WiFi.h>
 #include <EEPROM.h>
 #include <Free_Fonts.h>
@@ -983,6 +984,19 @@ void setup()
     randomSeed(analogRead(0));
 
     tft.init();
+    setup_t tft_setup;
+    tft.getSetup(tft_setup);
+    Serial.println("TFT_eSPI setup:");
+    Serial.println("  driver: 0x" + String(tft_setup.tft_driver, HEX));
+    Serial.println("  size: " + String(tft_setup.tft_width) + "x" + String(tft_setup.tft_height));
+    Serial.println("  spi_freq (x100kHz): " + String(tft_setup.tft_spi_freq));
+    Serial.println("  pins - MOSI:" + String(tft_setup.pin_tft_mosi) +
+                   " MISO:" + String(tft_setup.pin_tft_miso) +
+                   " SCLK:" + String(tft_setup.pin_tft_clk) +
+                   " CS:" + String(tft_setup.pin_tft_cs) +
+                   " DC:" + String(tft_setup.pin_tft_dc) +
+                   " RST:" + String(tft_setup.pin_tft_rst) +
+                   " BL:" + String(tft_setup.pin_tft_led));
     tft.setRotation(0);
     tft.fillScreen(TFT_WHITE); // White background
 
