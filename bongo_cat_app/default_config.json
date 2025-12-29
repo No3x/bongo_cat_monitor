@@ -3,6 +3,7 @@
   "display": {
     "show_cpu": true,
     "show_ram": true,
+    "show_gpu_usage": true,
     "show_wpm": true,
     "show_cpu_temp": true,
     "show_gpu_temp": true,

@@ -18,6 +18,7 @@ from typing import Callable, Dict, Any
 from HardwareMonitor.Hardware import *
 from HardwareMonitor.Hardware import HardwareType, SensorType
 from HardwareMonitor.Util import OpenComputer
+from version import VERSION
 
 class BongoCatEngine:
     """Bongo Cat engine using proven original implementation with configuration support"""
@@ -103,6 +104,7 @@ class BongoCatEngine:
         # FAST REAL-TIME System monitoring with dedicated thread
         self.cpu_percent = 0
         self.ram_percent = 0
+        self.gpu_percent = 0
         self.cpu_temp = 0
         self.gpu_temp = 0
         self.system_monitor_running = False
@@ -113,6 +115,7 @@ class BongoCatEngine:
         self.hardware_monitor_enabled = False
         self.need_cpu_temp = False
         self.need_gpu_temp = False
+        self.need_gpu_usage = False
         
         # Idle management
         self.idle_start_time = 0
@@ -133,10 +136,10 @@ class BongoCatEngine:
         if self.config:
             self.config.add_change_callback(self._on_config_change)
 
-    def build_stats_command(self, cpu, ram, cpu_temp, gpu_temp, wpm):
+    def build_stats_command(self, cpu, ram, gpu, cpu_temp, gpu_temp, wpm):
         """Centralized STATS command builder to ensure consistent formatting"""
-        print(f"STATS:CPU:{cpu},RAM:{ram},CPUTemp:{cpu_temp},GPUTemp:{gpu_temp},WPM:{wpm}")
-        return f"STATS:CPU:{cpu},RAM:{ram},CPUTemp:{cpu_temp},GPUTemp:{gpu_temp},WPM:{wpm}"
+        print(f"STATS:CPU:{cpu},RAM:{ram},GPU:{gpu},CPUTemp:{cpu_temp},GPUTemp:{gpu_temp},WPM:{wpm}")
+        return f"STATS:CPU:{cpu},RAM:{ram},GPU:{gpu},CPUTemp:{cpu_temp},GPUTemp:{gpu_temp},WPM:{wpm}"
      
     def set_tray_reference(self, tray):
         """Set reference to system tray for status updates"""
@@ -152,12 +155,14 @@ class BongoCatEngine:
         display_settings = self.config.get_display_settings()
         new_need_cpu_temp = display_settings.get('show_cpu_temp', False)
         new_need_gpu_temp = display_settings.get('show_gpu_temp', False)
+        new_need_gpu_usage = display_settings.get('show_gpu_usage', True)
 
         # Check if requirements changed (or if this is first initialization)
         requirements_changed = (
             not hasattr(self, 'need_cpu_temp') or  # First time
             new_need_cpu_temp != self.need_cpu_temp or 
             new_need_gpu_temp != self.need_gpu_temp or
+            new_need_gpu_usage != self.need_gpu_usage or
             force_reinit
         )
 
@@ -170,6 +175,7 @@ class BongoCatEngine:
             print(f"🌡️ Temperature monitoring requirements changed:")
             print(f"   CPU: {getattr(self, 'need_cpu_temp', False)} → {new_need_cpu_temp}")
             print(f"   GPU: {getattr(self, 'need_gpu_temp', False)} → {new_need_gpu_temp}")
+            print(f"   GPU Usage: {getattr(self, 'need_gpu_usage', False)} → {new_need_gpu_usage}")
 
         # Close existing hardware monitor if running
         if hasattr(self, 'hardware_computer') and self.hardware_computer:
@@ -184,12 +190,14 @@ class BongoCatEngine:
         # Update requirements
         self.need_cpu_temp = new_need_cpu_temp
         self.need_gpu_temp = new_need_gpu_temp
+        self.need_gpu_usage = new_need_gpu_usage
 
         # Initialize hardware monitor with new requirements
-        if self.need_cpu_temp or self.need_gpu_temp:
+        if self.need_cpu_temp or self.need_gpu_temp or self.need_gpu_usage:
             try:
-                print(f"🌡️ Initializing hardware monitor (CPU: {self.need_cpu_temp}, GPU: {self.need_gpu_temp})")
-                self.hardware_computer = OpenComputer(cpu=self.need_cpu_temp, gpu=self.need_gpu_temp)
+                need_gpu = self.need_gpu_temp or self.need_gpu_usage
+                print(f"🌡️ Initializing hardware monitor (CPU: {self.need_cpu_temp}, GPU: {need_gpu})")
+                self.hardware_computer = OpenComputer(cpu=self.need_cpu_temp, gpu=need_gpu)
                 self.hardware_monitor_enabled = True
                 print("✅ Hardware monitor initialized successfully")
             except Exception as e:
@@ -223,7 +231,7 @@ class BongoCatEngine:
         elif key == "behavior.sleep_timeout_minutes":
             self.sleep_timeout = value * 60  # Convert minutes to seconds
             print(f"🔧 Sleep timeout updated: {value} minutes ({self.sleep_timeout}s)")
-        elif key == "display.show_cpu_temp" or key == "display.show_gpu_temp":
+        elif key == "display.show_cpu_temp" or key == "display.show_gpu_temp" or key == "display.show_gpu_usage":
             # Temperature monitoring settings changed - reinitialize hardware monitor
             print(f"🌡️ Temperature monitoring setting changed - reinitializing hardware monitor")
             self.init_hardware_monitor()
@@ -247,6 +255,7 @@ class BongoCatEngine:
         display = self.config.get_display_settings()
         self.send_command(f"DISPLAY_CPU:{'ON' if display.get('show_cpu') else 'OFF'}")
         self.send_command(f"DISPLAY_RAM:{'ON' if display.get('show_ram') else 'OFF'}")
+        self.send_command(f"DISPLAY_GPU_USAGE:{'ON' if display.get('show_gpu_usage') else 'OFF'}")
         self.send_command(f"DISPLAY_WPM:{'ON' if display.get('show_wpm') else 'OFF'}")
         self.send_command(f"DISPLAY_CPU_TEMP:{'ON' if display.get('show_cpu_temp') else 'OFF'}")
         self.send_command(f"DISPLAY_GPU_TEMP:{'ON' if display.get('show_gpu_temp') else 'OFF'}")
@@ -394,10 +403,10 @@ class BongoCatEngine:
             print(f"🕐 Initial time sync: {current_time_str}")
             
             # Send initial system stats
-            cpu, ram, cpu_temp, gpu_temp = self.get_system_stats()
-            stats_command = self.build_stats_command(cpu, ram, cpu_temp, gpu_temp, 0)
+            cpu, ram, gpu, cpu_temp, gpu_temp = self.get_system_stats()
+            stats_command = self.build_stats_command(cpu, ram, gpu, cpu_temp, gpu_temp, 0)
             self.send_command(stats_command)
-            print(f"📊 Initial stats: CPU {cpu}%, RAM {ram}%, CPU Temp {cpu_temp}, GPU Temp {gpu_temp}, WPM 0")
+            print(f"📊 Initial stats: CPU {cpu}%, RAM {ram}%, GPU {gpu}%, CPU Temp {cpu_temp}, GPU Temp {gpu_temp}, WPM 0")
             
             # Initialize timing variables
             self.last_stats_sent = time.time()
@@ -453,12 +462,13 @@ class BongoCatEngine:
                 memory = psutil.virtual_memory()
                 ram_usage = memory.percent
 
-                cpu_temp, gpu_temp = self.get_cpu_gpu_temps()
+                cpu_temp, gpu_temp, gpu_usage = self.get_cpu_gpu_telemetry()
 
                 # Update shared variables (thread-safe)
                 with self._data_lock:
                     self.cpu_percent = int(cpu_usage)
                     self.ram_percent = int(ram_usage)
+                    self.gpu_percent = int(gpu_usage)
                     self.cpu_temp = int(cpu_temp)
                     self.gpu_temp = int(gpu_temp)
                 
@@ -467,6 +477,56 @@ class BongoCatEngine:
                 # Continue running even with errors
                 time.sleep(1.0)
     
+    def get_cpu_gpu_telemetry(self):
+        """Get CPU temp, GPU temp, and GPU usage using persistent hardware monitor"""
+        cpu_temp = 0
+        gpu_temp = 0
+        gpu_usage = 0
+
+        # Return zeros if hardware monitoring is not enabled or not available
+        if not self.hardware_monitor_enabled or not self.hardware_computer:
+            return cpu_temp, gpu_temp, gpu_usage
+
+        try:
+            # Update hardware sensors
+            for hw in self.hardware_computer.Hardware:
+                hw.Update()
+
+                # CPU temperature
+                if self.need_cpu_temp and hw.HardwareType == HardwareType.Cpu:
+                    pkg = [s for s in hw.Sensors
+                        if s.SensorType == SensorType.Temperature and "core" in s.Name.lower()]
+                    if pkg:
+                        cpu_temp = int(pkg[0].Value) if pkg[0].Value else 0
+                    else:
+                        temps = [s.Value for s in hw.Sensors if s.SensorType == SensorType.Temperature and s.Value]
+                        if temps:
+                            cpu_temp = int(max(temps))
+
+                # GPU temperature and usage
+                if (self.need_gpu_temp or self.need_gpu_usage) and hw.HardwareType in (HardwareType.GpuAmd, HardwareType.GpuNvidia, HardwareType.GpuIntel):
+                    if self.need_gpu_temp:
+                        core = [s for s in hw.Sensors
+                                if s.SensorType == SensorType.Temperature and "core" in s.Name.lower()]
+                        if core:
+                            gpu_temp = int(core[0].Value) if core[0].Value else 0
+
+                    if self.need_gpu_usage:
+                        loads = [s.Value for s in hw.Sensors
+                                 if s.SensorType == SensorType.Load and s.Value is not None
+                                 and ("core" in s.Name.lower() or "gpu" in s.Name.lower() or "3d" in s.Name.lower())]
+                        if loads:
+                            gpu_usage = int(max(loads))
+
+        except Exception as e:
+            print(f"?? Temperature read error: {e}")
+            # Return 0 values on error instead of None
+            cpu_temp = 0
+            gpu_temp = 0
+            gpu_usage = 0
+
+        return cpu_temp, gpu_temp, gpu_usage
+
     def get_cpu_gpu_temps(self):
         """Get CPU and GPU temperatures using persistent hardware monitor"""
         cpu_temp = 0
@@ -512,18 +572,18 @@ class BongoCatEngine:
         try:
             # Simply return the latest values from the monitoring thread
             with self._data_lock:
-                return self.cpu_percent, self.ram_percent, self.cpu_temp, self.gpu_temp
+                return self.cpu_percent, self.ram_percent, self.gpu_percent, self.cpu_temp, self.gpu_temp
         except Exception as e:
             print(f"⚠️ System stats access error: {e}")
-            return 0, 0, 0, 0
+            return 0, 0, 0, 0, 0
     
     def send_system_stats(self):
         """Send system stats and current computer time to ESP32 - EXACT ORIGINAL IMPLEMENTATION"""
-        cpu, ram, cpu_temp, gpu_temp = self.get_system_stats()
+        cpu, ram, gpu, cpu_temp, gpu_temp = self.get_system_stats()
         wpm = int(self.current_wpm)
         
         # Send system stats
-        stats_command = self.build_stats_command(cpu, ram, cpu_temp, gpu_temp, wpm)
+        stats_command = self.build_stats_command(cpu, ram, gpu, cpu_temp, gpu_temp, wpm)
         self.send_command(stats_command)
         
         # Send current computer time (automatically synced)
@@ -544,9 +604,9 @@ class BongoCatEngine:
         if current_time - self.last_stats_sent >= 2.0:
             try:
                 # Get instant CPU/RAM data from monitoring thread (no blocking!)
-                cpu, ram, cpu_temp, gpu_temp = self.get_system_stats()
+                cpu, ram, gpu, cpu_temp, gpu_temp = self.get_system_stats()
                 wpm = int(self.current_wpm) if hasattr(self, 'current_wpm') else 0
-                stats_command = self.build_stats_command(cpu, ram, cpu_temp, gpu_temp, wpm)
+                stats_command = self.build_stats_command(cpu, ram, gpu, cpu_temp, gpu_temp, wpm)
                 self.send_command(stats_command)
                 self.last_stats_sent = current_time
             except Exception as e:
@@ -887,7 +947,7 @@ class BongoCatEngine:
     
     def start_monitoring(self):
         """Start the enhanced typing monitor - EXACT ORIGINAL IMPLEMENTATION with Configuration Support"""
-        print("🚀 Bongo Cat Engine v3.1 - SUPER-FAST ANIMATION SUPPORT")
+        print(f"🚀 Bongo Cat v{VERSION} - SUPER-FAST ANIMATION SUPPORT")
         print("=" * 70)
         print("🔧 CRITICAL FIXES APPLIED:")
         print("   • Threading: Engine runs on MAIN thread (like original script)")
@@ -955,10 +1015,11 @@ class BongoCatEngine:
     
     def stop_monitoring(self):
         """Stop the typing monitor - EXACT ORIGINAL IMPLEMENTATION"""
-        print("\n🛑 Stopping Bongo Cat monitor...")
+        print("🛑 Stopping Bongo Cat monitor...")
         self.running = False
         self.disconnect_serial()
         self.stop_system_monitor() # Stop the system monitor thread
+        self.close_hardware_monitor() # Close hardware temperature monitoring
         print("👋 Thank you for using Bongo Cat! Keep typing! ⌨️🐱")
     
     def apply_all_config_to_arduino(self):
@@ -974,6 +1035,8 @@ class BongoCatEngine:
             self.send_command(f"DISPLAY_CPU:{'ON' if display.get('show_cpu') else 'OFF'}")
             time.sleep(0.1)  # Small delay between commands
             self.send_command(f"DISPLAY_RAM:{'ON' if display.get('show_ram') else 'OFF'}")
+            time.sleep(0.1)
+            self.send_command(f"DISPLAY_GPU_USAGE:{'ON' if display.get('show_gpu_usage') else 'OFF'}")
             time.sleep(0.1)
             self.send_command(f"DISPLAY_CPU_TEMP:{'ON' if display.get('show_cpu_temp') else 'OFF'}")
             time.sleep(0.1)  

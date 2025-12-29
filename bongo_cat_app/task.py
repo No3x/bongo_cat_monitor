@@ -13,6 +13,7 @@ class Task:
 
     def __init__(self, name, **kwargs):
         """A Task object.
+
         Args:
             name (str): The name of the task.
             debug (bool, optional): If True, will print the command being run. Defaults to False.
@@ -25,9 +26,10 @@ class Task:
 
         self.debug = False
         self.__dict__.update(kwargs)
-
+        
     def print(self, text):
         """Prints text to the console, if debug is True.
+
         Args:
             text (str): The text to print.
         """        
@@ -47,7 +49,7 @@ class Task:
         else: 
             self.folder = None
             return False            
-
+            
     def set_enabled(self, enabled: bool):
         """
         Enables or disables the task in the Windows Task Scheduler.

@@ -16,6 +16,7 @@
 struct BongoCatSettings
 {
     bool show_cpu = true;
+    bool show_gpu_usage = true;
     bool show_ram = true;
     bool show_wpm = true;
     bool show_cpu_temp = false;
@@ -62,6 +63,7 @@ uint32_t frame_skip_counter = 0;
 // System stats display
 lv_obj_t *screen = NULL;
 lv_obj_t *cpu_label = NULL;
+lv_obj_t *gpu_label = NULL;
 lv_obj_t *ram_label = NULL;
 lv_obj_t *wpm_label = NULL;
 lv_obj_t *time_label = NULL;
@@ -70,6 +72,7 @@ lv_obj_t *gpu_temp_label = NULL;
 
 // Stats data
 int cpu_usage = 0;
+int gpu_usage = 0;
 int ram_usage = 0;
 int wpm_speed = 0;
 int cpu_temp = 0;
@@ -97,9 +100,10 @@ void my_disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color
 }
 
 // Update system stats display
-void updateSystemStats(int cpu, int ram, int wpm, int cpu_t, int gpu_t)
+void updateSystemStats(int cpu, int gpu, int ram, int wpm, int cpu_t, int gpu_t)
 {
     cpu_usage = cpu;
+    gpu_usage = gpu;
     ram_usage = ram;
     wpm_speed = wpm;
     cpu_temp = cpu_t;
@@ -108,6 +112,10 @@ void updateSystemStats(int cpu, int ram, int wpm, int cpu_t, int gpu_t)
     if (cpu_label)
     {
         lv_label_set_text_fmt(cpu_label, "CPU: %d%%", cpu);
+    }
+    if (gpu_label)
+    {
+        lv_label_set_text_fmt(gpu_label, "GPU: %d%%", gpu);
     }
     if (ram_label)
     {
@@ -121,7 +129,7 @@ void updateSystemStats(int cpu, int ram, int wpm, int cpu_t, int gpu_t)
     {
         if (cpu_t > 0)
         {
-            lv_label_set_text_fmt(cpu_temp_label, "CPU Temp: %d°C", cpu_t);
+            lv_label_set_text_fmt(cpu_temp_label, "CPU Temp: %dC", cpu_t);
         }
         else
         {
@@ -132,7 +140,7 @@ void updateSystemStats(int cpu, int ram, int wpm, int cpu_t, int gpu_t)
     {
         if (gpu_t > 0)
         {
-            lv_label_set_text_fmt(gpu_temp_label, "GPU Temp: %d°C", gpu_t);
+            lv_label_set_text_fmt(gpu_temp_label, "GPU Temp: %dC", gpu_t);
         }
         else
         {
@@ -160,7 +168,7 @@ void updateTimeDisplay()
             else if (hour > 12)
                 hour -= 12; // 13:xx -> 1:xx PM
 
-            display_time = String(hour) + ":" + minute + " " + ampm;
+            display_time = String(hour) + ":" + minute + ampm;
         }
 
         lv_label_set_text(time_label, display_time.c_str());
@@ -233,6 +241,7 @@ void resetSettings()
 {
     // Reset to default values
     settings.show_cpu = true;
+    settings.show_gpu_usage = true;
     settings.show_ram = true;
     settings.show_wpm = true;
     settings.show_time = true;
@@ -255,7 +264,7 @@ void repositionLabels()
     const int spacing = 20; // 20px spacing between labels
 
     // Array of labels in order we want them displayed
-    lv_obj_t *labels[] = {cpu_label, ram_label, cpu_temp_label, gpu_temp_label, wpm_label};
+    lv_obj_t *labels[] = {cpu_label, gpu_label, ram_label, cpu_temp_label, gpu_temp_label, wpm_label};
     int num_labels = sizeof(labels) / sizeof(labels[0]);
 
     for (int i = 0; i < num_labels; i++)
@@ -304,6 +313,19 @@ void updateDisplayVisibility()
             lv_obj_add_flag(ram_label, LV_OBJ_FLAG_HIDDEN);
         }
         Serial.println("💾 RAM visibility updated: " + String(settings.show_ram ? "ON" : "OFF"));
+    }
+
+    if (gpu_label)
+    {
+        if (settings.show_gpu_usage)
+        {
+            lv_obj_clear_flag(gpu_label, LV_OBJ_FLAG_HIDDEN);
+        }
+        else
+        {
+            lv_obj_add_flag(gpu_label, LV_OBJ_FLAG_HIDDEN);
+        }
+        Serial.println("?? GPU usage visibility updated: " + String(settings.show_gpu_usage ? "ON" : "OFF"));
     }
 
     if (wpm_label)
@@ -465,7 +487,7 @@ void handleSerialCommands()
         }
         else if (command.startsWith("STATS:"))
         {
-            // Parse stats: STATS:CPU:45,RAM:67,CPUTemp:50,GPUTemp:55,WPM:23
+            // Parse stats: STATS:CPU:45,RAM:67,GPU:12,CPUTemp:50,GPUTemp:55,WPM:23
             String stats = command.substring(6);
 
             int cpuStart = stats.indexOf("CPU:") + 4;
@@ -475,6 +497,14 @@ void handleSerialCommands()
             int ramStart = stats.indexOf("RAM:") + 4;
             int ramEnd = stats.indexOf(",", ramStart);
             int ram = stats.substring(ramStart, ramEnd).toInt();
+
+            int gpuStart = stats.indexOf("GPU:") + 4;
+            int gpuEnd = stats.indexOf(",", gpuStart);
+            int gpu = 0;
+            if (gpuStart > 3 && gpuEnd > gpuStart)
+            { // Check if GPU: was found
+                gpu = stats.substring(gpuStart, gpuEnd).toInt();
+            }
 
             int cpuTempStart = stats.indexOf("CPUTemp:") + 8;
             int cpuTempEnd = stats.indexOf(",", cpuTempStart);
@@ -496,7 +526,7 @@ void handleSerialCommands()
             int wpmEnd = stats.indexOf(",", wpmStart);
             int wpm = stats.substring(wpmStart, wpmEnd).toInt();
 
-            updateSystemStats(cpu, ram, wpm, cpuTemp, gpuTemp);
+            updateSystemStats(cpu, gpu, ram, wpm, cpuTemp, gpuTemp);
         }
         else if (command.startsWith("TIME:"))
         {
@@ -516,6 +546,11 @@ void handleSerialCommands()
         {
             // Handle RAM usage updates
             ram_usage = command.substring(4).toInt();
+        }
+        else if (command.startsWith("GPU:"))
+        {
+            // Handle GPU usage updates
+            gpu_usage = command.substring(4).toInt();
         }
         else if (command.startsWith("WPM:"))
         {
@@ -581,6 +616,13 @@ void handleSerialCommands()
             settings.show_ram = (value == "ON");
             updateDisplayVisibility();
             Serial.println("💾 RAM display: " + value);
+        }
+        else if (command.startsWith("DISPLAY_GPU_USAGE:"))
+        {
+            String value = command.substring(18);
+            settings.show_gpu_usage = (value == "ON");
+            updateDisplayVisibility();
+            Serial.println("?? GPU usage display: " + value);
         }
         else if (command.startsWith("DISPLAY_WPM:"))
         {
@@ -1180,6 +1222,11 @@ void createBongoCat()
     lv_label_set_text(cpu_label, "CPU: 0%");
     lv_obj_set_style_text_font(cpu_label, &lv_font_unscii_16, 0);
     lv_obj_set_style_text_color(cpu_label, lv_color_black(), 0);
+
+    gpu_label = lv_label_create(screen);
+    lv_label_set_text(gpu_label, "GPU: 0%");
+    lv_obj_set_style_text_font(gpu_label, &lv_font_unscii_16, 0);
+    lv_obj_set_style_text_color(gpu_label, lv_color_black(), 0);
 
     ram_label = lv_label_create(screen);
     lv_label_set_text(ram_label, "RAM: 0%");

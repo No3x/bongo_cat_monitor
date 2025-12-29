@@ -12,6 +12,8 @@ import sys
 import os
 from typing import Optional, Callable
 from task import Task
+from version import VERSION, VERSION_INFO
+from constants import BONGO_CAT_AUTOSTART_TASK_NAME
 
 class BongoCatSystemTray:
     """System tray integration for Bongo Cat application"""
@@ -231,7 +233,7 @@ class BongoCatSystemTray:
         """Show about dialog"""
         self.show_notification(
             "About Bongo Cat",
-            "Bongo Cat Typing Monitor v2.0\n\nMonitors your typing and shows cute cat animations!\n\nRight-click for more options."
+            f"{VERSION_INFO['app_name']} v{VERSION}\n\n{VERSION_INFO['description']}\n\nRight-click for more options."
         )
     
     def show_settings(self, item=None):
@@ -321,11 +323,11 @@ class BongoCatSystemTray:
             old_setting = self.get_startup_setting()
             new_setting = not old_setting
 
-            task = Task("BONGO_CAT_AUTOSTART_TASK_NAME")
+            task = Task(BONGO_CAT_AUTOSTART_TASK_NAME)
 
             if not task.exists():
                 self.show_notification("Startup Task Missing", 
-                                        f"The Windows startup task 'BONGO_CAT_AUTOSTART_TASK_NAME' was not found.\n\n"
+                                        f"The Windows startup task '{BONGO_CAT_AUTOSTART_TASK_NAME}' was not found.\n\n"
                                         "Please run the installer again to create the startup task.")
                 print("⚠️ Windows startup task not found")
             else:

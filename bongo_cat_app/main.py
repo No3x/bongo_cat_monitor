@@ -13,6 +13,7 @@ import time
 from config import ConfigManager
 from engine import BongoCatEngine
 from tray import BongoCatSystemTray
+from version import VERSION
 
 class BongoCatApplication:
     """Main Bongo Cat application with FIXED thread-safe GUI"""
@@ -69,7 +70,7 @@ class BongoCatApplication:
     
     def run(self):
         """Run the main application"""
-        print("🐱 Bongo Cat Application v2.1")
+        print(f"🐱 Bongo Cat Application v{VERSION}")
         print("=" * 60)
         
         # Initialize components
@@ -164,6 +165,8 @@ def main():
     """Main application entry point"""
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="Bongo Cat Typing Monitor")
+    parser.add_argument("--version", action="version", 
+                       version=f"Bongo Cat Typing Monitor v{VERSION}")
     parser.add_argument("--minimized", action="store_true", 
                        help="Start minimized to system tray")
     parser.add_argument("--startup", action="store_true",

@@ -40,6 +40,7 @@ Required packages:
 - `pynput` - Keyboard input detection  
 - `pyserial` - Serial communication
 - `tkinter` - GUI (usually included with Python)
+- `HardwareMonitor` - Hardware Monitor for CPU/GPU Temp
 
 ### Running from Source
 ```bash
@@ -98,6 +99,10 @@ The app sends commands to ESP32 via serial at 115200 baud:
 | Command | Format | Description |
 |---------|--------|-------------|
 | CPU | `CPU:XX` | CPU usage percentage (0-100) |
+| GPU | `GPU:XX` | GPU usage percentage (0-100) |
+| RAM | `RAM:XX` | RAM usage percentage (0-100) |
+| CPU Temp | `CPUTemp:XX` | CPU Temperature |
+| GPU Temp | `GPUTemp:XX` | GPU Temperature |
 | RAM | `RAM:XX` | RAM usage percentage (0-100) |
 | WPM | `WPM:XX` | Words per minute (0-999) |
 | TIME | `TIME:HH:MM` | Current time in 24h format |
