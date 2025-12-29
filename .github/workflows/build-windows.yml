@@ -1,0 +1,67 @@
+name: Build Windows (PyInstaller + NSIS)
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: |
+            bongo_cat_app/requirements_app.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r bongo_cat_app/requirements_app.txt
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+
+      - name: Build executable with PyInstaller
+        run: |
+          pyinstaller --clean bongo_cat.spec
+
+      - name: Install NSIS
+        uses: repolevedavaj/install-nsis@v1.1.0
+        with:
+          nsis-version: "3.10"
+
+      - name: Build installer with NSIS
+        run: |
+          if (!(Test-Path BongoCat_Release)) { New-Item -ItemType Directory BongoCat_Release | Out-Null }
+          makensis Installer.nsi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: BongoCat-Windows
+          path: |
+            dist/BongoCat.exe
+            BongoCat_Release/BongoCat_Setup.exe
+
+      - name: Create Release (if tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/BongoCat.exe
+            BongoCat_Release/BongoCat_Setup.exe
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
