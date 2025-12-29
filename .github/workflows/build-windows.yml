@@ -33,7 +33,7 @@ jobs:
 
       - name: Build executable with PyInstaller
         run: |
-          pyinstaller --clean .\bongo_cat.spec
+          pyinstaller --clean bongo_cat.spec
 
       - name: Install NSIS
         run: choco install nsis -y
