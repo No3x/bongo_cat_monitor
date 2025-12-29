@@ -32,6 +32,8 @@ class ConfigManager:
                 "show_cpu": True,
                 "show_ram": True,
                 "show_wpm": True,
+                "show_cpu_temp": True,
+                "show_gpu_temp": True,
                 "show_time": True,
                 "time_format_24h": True
             },

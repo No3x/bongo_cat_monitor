@@ -4,6 +4,8 @@
     "show_cpu": true,
     "show_ram": true,
     "show_wpm": true,
+    "show_cpu_temp": true,
+    "show_gpu_temp": true,
     "show_time": true,
     "time_format_24h": true
   },
@@ -23,4 +25,4 @@
     "start_minimized": true,
     "show_notifications": true
   }
-} 
+}

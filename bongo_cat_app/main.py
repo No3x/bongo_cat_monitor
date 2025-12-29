@@ -7,7 +7,8 @@ Fixed threading model - Engine ALWAYS runs on main thread for proper keyboard ti
 import sys
 import signal
 import argparse
-import threading
+import os
+import pyuac
 import time
 from config import ConfigManager
 from engine import BongoCatEngine
@@ -50,7 +51,8 @@ class BongoCatApplication:
             self.tray = BongoCatSystemTray(
                 config_manager=self.config,
                 engine=self.engine,
-                on_exit_callback=self.shutdown
+                on_exit_callback=self.shutdown,
+                app_instance=self
             )
             
             # Connect engine to tray for status updates
@@ -66,8 +68,8 @@ class BongoCatApplication:
             return False
     
     def run(self):
-        """Run the main application with FIXED threading model"""
-        print("🐱 Bongo Cat Application v2.1 - FIXED THREADING")
+        """Run the main application"""
+        print("🐱 Bongo Cat Application v2.1")
         print("=" * 60)
         
         # Initialize components
@@ -123,21 +125,40 @@ class BongoCatApplication:
         
         # Stop engine first
         if self.engine:
-            self.engine.stop_monitoring()
+            try:
+                self.engine.stop_monitoring()
+            except Exception as e:
+                print(f"⚠️ Engine shutdown error: {e}")
         
         # Stop system tray
         if self.tray:
-            self.tray.stop()
+            try:
+                self.tray.stop()
+            except Exception as e:
+                print(f"⚠️ Tray shutdown error: {e}")
         
         # Clean up tkinter root if it exists
         if hasattr(self, 'tk_root') and self.tk_root:
             try:
+                self.tk_root.quit()
                 self.tk_root.destroy()
-            except:
-                pass
+            except Exception as e:
+                print(f"⚠️ Tkinter cleanup error: {e}")
         
         print("👋 Goodbye!")
-        sys.exit(0)
+        
+        # Force terminate any remaining threads and exit
+        try:
+            # Give threads a moment to clean up
+            time.sleep(0.5)
+
+            # Force exit - this will terminate all threads
+            print("🔄 Force exiting application...")
+            os._exit(0)
+        except Exception as e:
+            print(f"⚠️ Force exit error: {e}")
+            # Last resort - use system exit
+            sys.exit(1)
 
 def main():
     """Main application entry point"""
@@ -158,4 +179,8 @@ def main():
     return app.run()
 
 if __name__ == "__main__":
-    sys.exit(main())
+    if not pyuac.isUserAdmin():
+         print("Re-launching as admin!")
+         pyuac.runAsAdmin(wait=False)
+    else:     
+        sys.exit(main())

@@ -18,6 +18,8 @@ struct BongoCatSettings
     bool show_cpu = true;
     bool show_ram = true;
     bool show_wpm = true;
+    bool show_cpu_temp = false;
+    bool show_gpu_temp = false;
     bool show_time = true;
     bool time_format_24h = true;
     int sleep_timeout_minutes = 5;
@@ -66,7 +68,6 @@ lv_obj_t *time_label = NULL;
 lv_obj_t *cpu_temp_label = NULL;
 lv_obj_t *gpu_temp_label = NULL;
 
-
 // Stats data
 int cpu_usage = 0;
 int ram_usage = 0;
@@ -96,14 +97,16 @@ void my_disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color
 }
 
 // Update system stats display
-void updateSystemStats(int cpu, int ram, int wpm, int cpu_t, int gpu_t) {
+void updateSystemStats(int cpu, int ram, int wpm, int cpu_t, int gpu_t)
+{
     cpu_usage = cpu;
     ram_usage = ram;
     wpm_speed = wpm;
     cpu_temp = cpu_t;
     gpu_temp = gpu_t;
-    
-    if (cpu_label) {
+
+    if (cpu_label)
+    {
         lv_label_set_text_fmt(cpu_label, "CPU: %d%%", cpu);
     }
     if (ram_label)
@@ -114,17 +117,25 @@ void updateSystemStats(int cpu, int ram, int wpm, int cpu_t, int gpu_t) {
     {
         lv_label_set_text_fmt(wpm_label, "WPM: %d", wpm);
     }
-    if (cpu_temp_label) {
-        if (cpu_t > 0) {
-            lv_label_set_text_fmt(cpu_temp_label, LV_SYMBOL_DEGREES " %dC", cpu_t);
-        } else {
+    if (cpu_temp_label)
+    {
+        if (cpu_t > 0)
+        {
+            lv_label_set_text_fmt(cpu_temp_label, "CPU Temp: %d°C", cpu_t);
+        }
+        else
+        {
             lv_label_set_text(cpu_temp_label, "");
         }
     }
-    if (gpu_temp_label) {
-        if (gpu_t > 0) {
-            lv_label_set_text_fmt(gpu_temp_label, LV_SYMBOL_DEGREES " %dC", gpu_t);
-        } else {
+    if (gpu_temp_label)
+    {
+        if (gpu_t > 0)
+        {
+            lv_label_set_text_fmt(gpu_temp_label, "GPU Temp: %d°C", gpu_t);
+        }
+        else
+        {
             lv_label_set_text(gpu_temp_label, "");
         }
     }
@@ -225,6 +236,8 @@ void resetSettings()
     settings.show_ram = true;
     settings.show_wpm = true;
     settings.show_time = true;
+    settings.show_cpu_temp = false;
+    settings.show_gpu_temp = false;
     settings.time_format_24h = true;
     settings.sleep_timeout_minutes = 5;
     settings.animation_sensitivity = 1.0;
@@ -232,6 +245,36 @@ void resetSettings()
 
     Serial.println("🔄 Settings reset to factory defaults");
     // Note: updateDisplayVisibility() will be called after UI creation if needed
+}
+
+void repositionLabels()
+{
+    // Dynamic positioning with 20px spacing between visible labels
+    int current_y = 5;      // Start position
+    const int x_pos = 5;    // Fixed X position for left side
+    const int spacing = 20; // 20px spacing between labels
+
+    // Array of labels in order we want them displayed
+    lv_obj_t *labels[] = {cpu_label, ram_label, cpu_temp_label, gpu_temp_label, wpm_label};
+    int num_labels = sizeof(labels) / sizeof(labels[0]);
+
+    for (int i = 0; i < num_labels; i++)
+    {
+        lv_obj_t *label = labels[i];
+        if (label && !lv_obj_has_flag(label, LV_OBJ_FLAG_HIDDEN))
+        {
+            // Special rule: CPU Temp and GPU Temp never start at Y=5
+            // They must start at minimum Y=25
+            if ((label == cpu_temp_label || label == gpu_temp_label) && current_y < 25)
+            {
+                current_y = 25;
+            }
+
+            // Position this visible label
+            lv_obj_align(label, LV_ALIGN_TOP_LEFT, x_pos, current_y);
+            current_y += spacing; // Move to next position
+        }
+    }
 }
 
 void updateDisplayVisibility()
@@ -276,6 +319,32 @@ void updateDisplayVisibility()
         Serial.println("⌨️ WPM visibility updated: " + String(settings.show_wpm ? "ON" : "OFF"));
     }
 
+    if (cpu_temp_label)
+    {
+        if (settings.show_cpu_temp)
+        {
+            lv_obj_clear_flag(cpu_temp_label, LV_OBJ_FLAG_HIDDEN);
+        }
+        else
+        {
+            lv_obj_add_flag(cpu_temp_label, LV_OBJ_FLAG_HIDDEN);
+        }
+        Serial.println("CPU Temp visibility updated: " + String(settings.show_cpu_temp ? "ON" : "OFF"));
+    }
+
+    if (gpu_temp_label)
+    {
+        if (settings.show_gpu_temp)
+        {
+            lv_obj_clear_flag(gpu_temp_label, LV_OBJ_FLAG_HIDDEN);
+        }
+        else
+        {
+            lv_obj_add_flag(gpu_temp_label, LV_OBJ_FLAG_HIDDEN);
+        }
+        Serial.println("GPU Temp visibility updated: " + String(settings.show_gpu_temp ? "ON" : "OFF"));
+    }
+
     if (time_label)
     {
         if (settings.show_time)
@@ -288,6 +357,9 @@ void updateDisplayVisibility()
         }
         Serial.println("🕐 Time visibility updated: " + String(settings.show_time ? "ON" : "OFF"));
     }
+
+    // After updating visibility, reposition all labels dynamically
+    repositionLabels();
 }
 
 // Handle serial commands from Python script
@@ -393,7 +465,7 @@ void handleSerialCommands()
         }
         else if (command.startsWith("STATS:"))
         {
-            // Parse stats: STATS:CPU:45,RAM:67,WPM:23
+            // Parse stats: STATS:CPU:45,RAM:67,CPUTemp:50,GPUTemp:55,WPM:23
             String stats = command.substring(6);
 
             int cpuStart = stats.indexOf("CPU:") + 4;
@@ -404,20 +476,30 @@ void handleSerialCommands()
             int ramEnd = stats.indexOf(",", ramStart);
             int ram = stats.substring(ramStart, ramEnd).toInt();
 
+            int cpuTempStart = stats.indexOf("CPUTemp:") + 8;
+            int cpuTempEnd = stats.indexOf(",", cpuTempStart);
+            int cpuTemp = 0;
+            if (cpuTempStart > 7 && cpuTempEnd > cpuTempStart)
+            { // Check if CPUTemp: was found
+                cpuTemp = stats.substring(cpuTempStart, cpuTempEnd).toInt();
+            }
+
+            int gpuTempStart = stats.indexOf("GPUTemp:") + 8;
+            int gpuTempEnd = stats.indexOf(",", gpuTempStart);
+            int gpuTemp = 0;
+            if (gpuTempStart > 7 && gpuTempEnd > gpuTempStart)
+            { // Check if GPUTemp: was found
+                gpuTemp = stats.substring(gpuTempStart, gpuTempEnd).toInt();
+            }
+
             int wpmStart = stats.indexOf("WPM:") + 4;
             int wpmEnd = stats.indexOf(",", wpmStart);
             int wpm = stats.substring(wpmStart, wpmEnd).toInt();
 
-            int cpuTempStart = stats.indexOf("CPUTEMP:") + 8;
-            int cpuTempEnd = stats.indexOf(",", cpuTempStart);
-            int cpu_temp = stats.substring(cpuTempStart, cpuTempEnd).toInt();
-
-            int gpuTempStart = stats.indexOf("GPUTEMP:") + 8;
-            int gpu_temp = stats.substring(gpuTempStart).toInt();
-            
-            updateSystemStats(cpu, ram, wpm, cpu_temp, gpu_temp);
-            
-        } else if (command.startsWith("TIME:")) {
+            updateSystemStats(cpu, ram, wpm, cpuTemp, gpuTemp);
+        }
+        else if (command.startsWith("TIME:"))
+        {
             // Handle time updates from Python script
             String time_str = command.substring(5);
             if (time_str.length() == 5 && time_str.charAt(2) == ':')
@@ -439,6 +521,16 @@ void handleSerialCommands()
         {
             // Handle WPM display updates
             wpm_speed = command.substring(4).toInt();
+        }
+        else if (command.startsWith("CPUTemp:"))
+        {
+            // Handle CPU Temp display updates
+            cpu_temp = command.substring(8).toInt();
+        }
+        else if (command.startsWith("GPUTemp:"))
+        {
+            // Handle GPU Temp display updates
+            gpu_temp = command.substring(8).toInt();
         }
         else if (command == "PING")
         {
@@ -496,6 +588,20 @@ void handleSerialCommands()
             settings.show_wpm = (value == "ON");
             updateDisplayVisibility();
             Serial.println("⌨️ WPM display: " + value);
+        }
+        else if (command.startsWith("DISPLAY_CPU_TEMP:"))
+        {
+            String value = command.substring(17);
+            settings.show_cpu_temp = (value == "ON");
+            updateDisplayVisibility();
+            Serial.println("CPU Temp display: " + value);
+        }
+        else if (command.startsWith("DISPLAY_GPU_TEMP:"))
+        {
+            String value = command.substring(17);
+            settings.show_gpu_temp = (value == "ON");
+            updateDisplayVisibility();
+            Serial.println("GPU Temp display: " + value);
         }
         else if (command.startsWith("DISPLAY_TIME:"))
         {
@@ -1069,43 +1175,43 @@ void createBongoCat()
     // Position cat: original alignment method + 3 cat pixels right + a bit lower
     lv_obj_align(cat_canvas, LV_ALIGN_CENTER, 12, 50); // 12px right (3 cat pixels), 50px lower
 
-    // Create system stats labels (top left) with pixelated font
+    // Create system stats labels (will be positioned dynamically)
     cpu_label = lv_label_create(screen);
     lv_label_set_text(cpu_label, "CPU: 0%");
     lv_obj_set_style_text_font(cpu_label, &lv_font_unscii_16, 0);
     lv_obj_set_style_text_color(cpu_label, lv_color_black(), 0);
-    lv_obj_align(cpu_label, LV_ALIGN_TOP_LEFT, 5, 5);
 
-    cpu_temp_label = lv_label_create(screen);
-    lv_label_set_text(cpu_temp_label, "");
-    lv_obj_set_style_text_font(cpu_temp_label, &lv_font_unscii_16, 0);
-    lv_obj_set_style_text_color(cpu_temp_label, lv_color_black(), 0);
-    lv_obj_align_to(cpu_temp_label, cpu_label, LV_ALIGN_OUT_RIGHT_MID, 10, 0);
-    
     ram_label = lv_label_create(screen);
     lv_label_set_text(ram_label, "RAM: 0%");
     lv_obj_set_style_text_font(ram_label, &lv_font_unscii_16, 0);
     lv_obj_set_style_text_color(ram_label, lv_color_black(), 0);
-    lv_obj_align(ram_label, LV_ALIGN_TOP_LEFT, 5, 25);
+
+    cpu_temp_label = lv_label_create(screen);
+    lv_label_set_text(cpu_temp_label, "CPU Temp: --C");
+    lv_obj_set_style_text_font(cpu_temp_label, &lv_font_unscii_16, 0);
+    lv_obj_set_style_text_color(cpu_temp_label, lv_color_black(), 0);
+    lv_label_set_recolor(cpu_temp_label, true);
 
     gpu_temp_label = lv_label_create(screen);
-    lv_label_set_text(gpu_temp_label, "");
+    lv_label_set_text(gpu_temp_label, "GPU Temp: --C");
     lv_obj_set_style_text_font(gpu_temp_label, &lv_font_unscii_16, 0);
     lv_obj_set_style_text_color(gpu_temp_label, lv_color_black(), 0);
-    lv_obj_align_to(gpu_temp_label, ram_label, LV_ALIGN_OUT_RIGHT_MID, 10, 0);
-    
+    lv_label_set_recolor(gpu_temp_label, true);
+
     wpm_label = lv_label_create(screen);
     lv_label_set_text(wpm_label, "WPM: 0");
     lv_obj_set_style_text_font(wpm_label, &lv_font_unscii_16, 0);
     lv_obj_set_style_text_color(wpm_label, lv_color_black(), 0);
-    lv_obj_align(wpm_label, LV_ALIGN_TOP_LEFT, 5, 45);
 
-    // Create time label (top right) - bigger pixelated font
+    // Create time label (top right) - positioned separately
     time_label = lv_label_create(screen);
     lv_label_set_text(time_label, "00:00");
     lv_obj_set_style_text_font(time_label, &lv_font_unscii_16, 0);
     lv_obj_set_style_text_color(time_label, lv_color_black(), 0);
     lv_obj_align(time_label, LV_ALIGN_TOP_RIGHT, -5, 5);
+
+    // Position labels dynamically based on visibility
+    repositionLabels();
 
     // Initial render
     sprite_render_layers(&sprite_manager, cat_canvas, millis());
