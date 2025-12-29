@@ -63,11 +63,16 @@ lv_obj_t *cpu_label = NULL;
 lv_obj_t *ram_label = NULL;
 lv_obj_t *wpm_label = NULL;
 lv_obj_t *time_label = NULL;
+lv_obj_t *cpu_temp_label = NULL;
+lv_obj_t *gpu_temp_label = NULL;
+
 
 // Stats data
 int cpu_usage = 0;
 int ram_usage = 0;
 int wpm_speed = 0;
+int cpu_temp = 0;
+int gpu_temp = 0;
 String current_time_str = "00:00";
 bool time_initialized = false; // Track if we've received time from Python
 
@@ -91,14 +96,14 @@ void my_disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color
 }
 
 // Update system stats display
-void updateSystemStats(int cpu, int ram, int wpm)
-{
+void updateSystemStats(int cpu, int ram, int wpm, int cpu_t, int gpu_t) {
     cpu_usage = cpu;
     ram_usage = ram;
     wpm_speed = wpm;
-
-    if (cpu_label)
-    {
+    cpu_temp = cpu_t;
+    gpu_temp = gpu_t;
+    
+    if (cpu_label) {
         lv_label_set_text_fmt(cpu_label, "CPU: %d%%", cpu);
     }
     if (ram_label)
@@ -108,6 +113,20 @@ void updateSystemStats(int cpu, int ram, int wpm)
     if (wpm_label)
     {
         lv_label_set_text_fmt(wpm_label, "WPM: %d", wpm);
+    }
+    if (cpu_temp_label) {
+        if (cpu_t > 0) {
+            lv_label_set_text_fmt(cpu_temp_label, LV_SYMBOL_DEGREES " %dC", cpu_t);
+        } else {
+            lv_label_set_text(cpu_temp_label, "");
+        }
+    }
+    if (gpu_temp_label) {
+        if (gpu_t > 0) {
+            lv_label_set_text_fmt(gpu_temp_label, LV_SYMBOL_DEGREES " %dC", gpu_t);
+        } else {
+            lv_label_set_text(gpu_temp_label, "");
+        }
     }
 }
 
@@ -386,12 +405,19 @@ void handleSerialCommands()
             int ram = stats.substring(ramStart, ramEnd).toInt();
 
             int wpmStart = stats.indexOf("WPM:") + 4;
-            int wpm = stats.substring(wpmStart).toInt();
+            int wpmEnd = stats.indexOf(",", wpmStart);
+            int wpm = stats.substring(wpmStart, wpmEnd).toInt();
 
-            updateSystemStats(cpu, ram, wpm);
-        }
-        else if (command.startsWith("TIME:"))
-        {
+            int cpuTempStart = stats.indexOf("CPUTEMP:") + 8;
+            int cpuTempEnd = stats.indexOf(",", cpuTempStart);
+            int cpu_temp = stats.substring(cpuTempStart, cpuTempEnd).toInt();
+
+            int gpuTempStart = stats.indexOf("GPUTEMP:") + 8;
+            int gpu_temp = stats.substring(gpuTempStart).toInt();
+            
+            updateSystemStats(cpu, ram, wpm, cpu_temp, gpu_temp);
+            
+        } else if (command.startsWith("TIME:")) {
             // Handle time updates from Python script
             String time_str = command.substring(5);
             if (time_str.length() == 5 && time_str.charAt(2) == ':')
@@ -1050,12 +1076,24 @@ void createBongoCat()
     lv_obj_set_style_text_color(cpu_label, lv_color_black(), 0);
     lv_obj_align(cpu_label, LV_ALIGN_TOP_LEFT, 5, 5);
 
+    cpu_temp_label = lv_label_create(screen);
+    lv_label_set_text(cpu_temp_label, "");
+    lv_obj_set_style_text_font(cpu_temp_label, &lv_font_unscii_16, 0);
+    lv_obj_set_style_text_color(cpu_temp_label, lv_color_black(), 0);
+    lv_obj_align_to(cpu_temp_label, cpu_label, LV_ALIGN_OUT_RIGHT_MID, 10, 0);
+    
     ram_label = lv_label_create(screen);
     lv_label_set_text(ram_label, "RAM: 0%");
     lv_obj_set_style_text_font(ram_label, &lv_font_unscii_16, 0);
     lv_obj_set_style_text_color(ram_label, lv_color_black(), 0);
     lv_obj_align(ram_label, LV_ALIGN_TOP_LEFT, 5, 25);
 
+    gpu_temp_label = lv_label_create(screen);
+    lv_label_set_text(gpu_temp_label, "");
+    lv_obj_set_style_text_font(gpu_temp_label, &lv_font_unscii_16, 0);
+    lv_obj_set_style_text_color(gpu_temp_label, lv_color_black(), 0);
+    lv_obj_align_to(gpu_temp_label, ram_label, LV_ALIGN_OUT_RIGHT_MID, 10, 0);
+    
     wpm_label = lv_label_create(screen);
     lv_label_set_text(wpm_label, "WPM: 0");
     lv_obj_set_style_text_font(wpm_label, &lv_font_unscii_16, 0);
