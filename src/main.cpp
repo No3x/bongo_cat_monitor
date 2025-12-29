@@ -11,6 +11,7 @@
 // Display settings
 #define SCREEN_WIDTH 240
 #define SCREEN_HEIGHT 320
+#define BACKLIGHT_BRIGHTNESS 10 // 0-255, hardcoded brightness
 
 // Configuration settings structure
 struct BongoCatSettings
@@ -84,6 +85,7 @@ bool time_initialized = false; // Track if we've received time from Python
 const char *get_state_name(animation_state_t state);
 void resetSettings(void);
 void createBongoCat(void);
+void setBacklightBrightness(int pin, uint8_t brightness);
 
 // Function to flush the display buffer
 void my_disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p)
@@ -1142,6 +1144,22 @@ const char *get_state_name(animation_state_t state)
     }
 }
 
+void setBacklightBrightness(int pin, uint8_t brightness)
+{
+    if (pin < 0)
+    {
+        return;
+    }
+
+    const int backlight_channel = 0;
+    const int backlight_freq = 5000;
+    const int backlight_resolution = 8;
+
+    ledcSetup(backlight_channel, backlight_freq, backlight_resolution);
+    ledcAttachPin(pin, backlight_channel);
+    ledcWrite(backlight_channel, brightness);
+}
+
 void setup()
 {
     Serial.begin(115200);
@@ -1170,6 +1188,7 @@ void setup()
                    " DC:" + String(tft_setup.pin_tft_dc) +
                    " RST:" + String(tft_setup.pin_tft_rst) +
                    " BL:" + String(tft_setup.pin_tft_led));
+    setBacklightBrightness(tft_setup.pin_tft_led, BACKLIGHT_BRIGHTNESS);
     tft.setRotation(0);
     tft.fillScreen(TFT_WHITE); // White background
 
