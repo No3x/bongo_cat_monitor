@@ -36,7 +36,9 @@ jobs:
           pyinstaller --clean bongo_cat.spec
 
       - name: Install NSIS
-        run: choco install nsis -y
+        uses: repolevedavaj/install-nsis@v1.0.1
+        with:
+          nsis-version: "3.10"
 
       - name: Build installer with NSIS
         run: |
