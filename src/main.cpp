@@ -1,6 +1,5 @@
+#include <Arduino.h>
 
-
-// #include <User_Setup.h>
 #include <TFT_eSPI.h>
 #include <lvgl.h>
 
